@@ -25,15 +25,19 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDrawerState
@@ -101,45 +105,50 @@ fun RgbBridgeApp(viewModel: MainViewModel = viewModel()) {
     )
   }
 
-  ModalNavigationDrawer(
-    drawerState = drawerState,
-    drawerContent = {
-      DrawerContent(
-        state = state.deviceState,
-        onAddClick = { showAddDialog = true },
-        onDeviceSelected = { viewModel.selectDevice(it) },
-        onEditDevice = { editingDevice = it },
-      )
-    },
-  ) {
-    Scaffold(
-      topBar = {
-        TopAppBar(
-          title = { Text("RGB Bridge") },
-          navigationIcon = {
-            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-              Icon(Icons.Default.Menu, contentDescription = "Menü")
-            }
+  MaterialTheme(colorScheme = shellyInspiredScheme()) {
+    Surface(color = MaterialTheme.colorScheme.background) {
+      ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+          DrawerContent(
+            state = state.deviceState,
+            onAddClick = { showAddDialog = true },
+            onDeviceSelected = { viewModel.selectDevice(it) },
+            onEditDevice = { editingDevice = it },
+          )
+        },
+      ) {
+        Scaffold(
+          containerColor = MaterialTheme.colorScheme.background,
+          topBar = {
+            TopAppBar(
+              title = { Text("RGB Bridge") },
+              navigationIcon = {
+                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                  Icon(Icons.Default.Menu, contentDescription = "Menü")
+                }
+              },
+              actions = {
+                if (state.deviceState.devices.isEmpty()) {
+                  IconButton(onClick = { viewModel.startDiscovery() }) {
+                    Icon(Icons.Default.Add, contentDescription = "ESP32 suchen")
+                  }
+                }
+              },
+            )
           },
-          actions = {
-            if (state.deviceState.devices.isEmpty()) {
-              IconButton(onClick = { viewModel.startDiscovery() }) {
-                Icon(Icons.Default.Add, contentDescription = "ESP32 suchen")
-              }
-            }
-          },
-        )
-      },
-    ) { padding ->
-      ColorControlScreen(
-        modifier = Modifier.padding(padding),
-        state = state,
-        onColorChange = { r, g, b -> viewModel.updateColor(r, g, b) },
-        onEffectChange = { viewModel.updateEffect(it) },
-        onAllTargetsChange = { viewModel.toggleAllTargets(it) },
-        onTargetToggle = { index, enabled -> viewModel.toggleTarget(index, enabled) },
-        onMaxTargetsChange = { viewModel.updateMaxTargets(it) },
-      )
+        ) { padding ->
+          ColorControlScreen(
+            modifier = Modifier.padding(padding),
+            state = state,
+            onColorChange = { r, g, b -> viewModel.updateColor(r, g, b) },
+            onEffectChange = { viewModel.updateEffect(it) },
+            onAllTargetsChange = { viewModel.toggleAllTargets(it) },
+            onTargetToggle = { index, enabled -> viewModel.toggleTarget(index, enabled) },
+            onMaxTargetsChange = { viewModel.updateMaxTargets(it) },
+          )
+        }
+      }
     }
   }
 }
@@ -152,22 +161,29 @@ fun DrawerContent(
   onEditDevice: (Esp32Device) -> Unit,
 ) {
   Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-    Text("Geräte", modifier = Modifier.padding(bottom = 8.dp))
+    Text("Geräte", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
     state.devices.forEach { device ->
-      Row(
+      Card(
         modifier = Modifier
           .fillMaxWidth()
-          .clickable { onDeviceSelected(device.id) }
-          .padding(vertical = 8.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
+          .padding(vertical = 6.dp)
+          .clickable { onDeviceSelected(device.id) },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
       ) {
-        Column {
-          Text(device.name)
-          Text(device.host, color = Color.Gray)
-        }
-        IconButton(onClick = { onEditDevice(device) }) {
-          Icon(Icons.Default.Edit, contentDescription = "Bearbeiten")
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(12.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Column {
+            Text(device.name, style = MaterialTheme.typography.titleSmall)
+            Text(device.host, color = MaterialTheme.colorScheme.onSurfaceVariant)
+          }
+          IconButton(onClick = { onEditDevice(device) }) {
+            Icon(Icons.Default.Edit, contentDescription = "Bearbeiten")
+          }
         }
       }
     }
@@ -200,30 +216,36 @@ fun ColorControlScreen(
       Text("Kein ESP32 gefunden. Öffne das Menü und füge einen hinzu.")
     }
 
-    ColorWheel(
-      modifier = Modifier.size(220.dp),
-      red = state.red,
-      green = state.green,
-      blue = state.blue,
-      onColorChange = onColorChange,
-    )
+    SectionCard(title = "Farbsteuerung") {
+      ColorWheel(
+        modifier = Modifier.size(220.dp),
+        red = state.red,
+        green = state.green,
+        blue = state.blue,
+        onColorChange = onColorChange,
+      )
 
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-      RgbField("R", state.red) { onColorChange(it, state.green, state.blue) }
-      RgbField("G", state.green) { onColorChange(state.red, it, state.blue) }
-      RgbField("B", state.blue) { onColorChange(state.red, state.green, it) }
+      Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        RgbField("R", state.red) { onColorChange(it, state.green, state.blue) }
+        RgbField("G", state.green) { onColorChange(state.red, it, state.blue) }
+        RgbField("B", state.blue) { onColorChange(state.red, state.green, it) }
+      }
     }
 
-    EffectSelector(current = state.effect, onEffectChange = onEffectChange)
+    SectionCard(title = "Effekte") {
+      EffectSelector(current = state.effect, onEffectChange = onEffectChange)
+    }
 
-    TargetSelection(
-      maxTargets = state.maxTargets,
-      allTargets = state.allTargets,
-      selectedTargets = state.selectedTargets,
-      onAllTargetsChange = onAllTargetsChange,
-      onTargetToggle = onTargetToggle,
-      onMaxTargetsChange = onMaxTargetsChange,
-    )
+    SectionCard(title = "Zielgeräte") {
+      TargetSelection(
+        maxTargets = state.maxTargets,
+        allTargets = state.allTargets,
+        selectedTargets = state.selectedTargets,
+        onAllTargetsChange = onAllTargetsChange,
+        onTargetToggle = onTargetToggle,
+        onMaxTargetsChange = onMaxTargetsChange,
+      )
+    }
   }
 }
 
@@ -248,8 +270,7 @@ fun EffectSelector(current: String, onEffectChange: (String) -> Unit) {
   val currentLabel = effects.firstOrNull { it.first == current }?.second ?: "Kein Effekt"
 
   Column {
-    Text("Effekte")
-    Spacer(modifier = Modifier.height(8.dp))
+    Spacer(modifier = Modifier.height(4.dp))
     Box {
       OutlinedTextField(
         value = currentLabel,
@@ -291,7 +312,6 @@ fun TargetSelection(
   onMaxTargetsChange: (Int) -> Unit,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Text("ATmega Auswahl")
     OutlinedTextField(
       value = maxTargets.toString(),
       onValueChange = { text ->
@@ -325,6 +345,41 @@ fun TargetSelection(
       }
     }
   }
+}
+
+@Composable
+fun SectionCard(title: String, content: @Composable () -> Unit) {
+  Card(
+    modifier = Modifier.fillMaxWidth(),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(16.dp),
+      verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+      Text(title, style = MaterialTheme.typography.titleMedium)
+      content()
+    }
+  }
+}
+
+@Composable
+fun shellyInspiredScheme(): androidx.compose.material3.ColorScheme {
+  return androidx.compose.material3.lightColorScheme(
+    primary = Color(0xFF2B3A55),
+    onPrimary = Color.White,
+    secondary = Color(0xFF00A6FF),
+    onSecondary = Color.White,
+    background = Color(0xFFF4F6FA),
+    onBackground = Color(0xFF1C1E21),
+    surface = Color.White,
+    onSurface = Color(0xFF1C1E21),
+    surfaceVariant = Color(0xFFE4E8F0),
+    onSurfaceVariant = Color(0xFF4A4F59),
+  )
 }
 
 @Composable
