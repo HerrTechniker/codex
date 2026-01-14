@@ -3,6 +3,7 @@
 #include <PubSubClient.h>
 #include <Preferences.h>
 #include <Wire.h>
+#include <ESPmDNS.h>
 
 // MQTT broker settings
 const char *kMqttHost = "broker.hivemq.com";
@@ -107,7 +108,14 @@ bool connectWifi() {
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
     delay(250);
   }
-  return WiFi.status() == WL_CONNECTED;
+  if (WiFi.status() != WL_CONNECTED) {
+    return false;
+  }
+  if (!MDNS.begin("esp32-rgb-bridge")) {
+    return true;
+  }
+  MDNS.addService("http", "tcp", 80);
+  return true;
 }
 
 void connectMqtt() {

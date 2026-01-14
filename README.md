@@ -17,6 +17,7 @@ Dieses Repo enthält zwei Arduino-Sketches:
 - Beim ersten Start ohne gespeicherte Zugangsdaten startet der ESP32 ein WLAN `ESP32-RGB-Setup`.
 - Verbinde dich mit diesem WLAN und rufe `http://192.168.4.1` auf.
 - Dort kannst du SSID und Passwort speichern; der ESP32 startet danach neu.
+- Im WLAN-Modus meldet sich der ESP32 per mDNS als `esp32-rgb-bridge` und bietet einen HTTP-Service an.
 
 ## MQTT Payload
 
@@ -57,3 +58,13 @@ In `atmega328p/atmega_rgb_slave.ino`:
 - `rgbled/2` → ATmega mit Adresse 0x11
 - `rgbled/3` → ATmega mit Adresse 0x12
 - `rgbled/4` → ATmega mit Adresse 0x13
+
+## Android App (Android 13+)
+
+Die App liegt unter `android-app/` und nutzt MQTT, um RGB-Daten an den Broker zu senden.
+
+- Beim ersten Start wird per mDNS nach `esp32-rgb-bridge` gesucht.
+- Gefundene ESP32-Geräte werden gespeichert und beim nächsten Start automatisch genutzt.
+- Weitere ESP32 lassen sich im seitlichen Menü (☰ oben links) hinzufügen.
+- Im Menü werden alle gespeicherten ESP32 angezeigt und können umbenannt werden.
+- Ein Farbkreis sowie manuelle RGB-Eingabe senden Änderungen direkt als `R,G,B` an das MQTT-Topic.
