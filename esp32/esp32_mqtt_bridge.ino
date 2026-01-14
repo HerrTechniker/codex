@@ -4,6 +4,7 @@
 #include <Preferences.h>
 #include <Wire.h>
 #include <ESPmDNS.h>
+#include <math.h>
 
 // MQTT broker settings
 const char *kMqttHost = "broker.hivemq.com";
@@ -14,6 +15,7 @@ const char *kMqttPassword = ""; // Leave empty if not required
 
 // MQTT topics
 const char *kTopicBase = "rgbled"; // Example: rgbled/1
+const char *kEffectTopic = "rgbled/effect";
 
 // I2C addressing
 const uint8_t kI2cDefaultSlaveAddress = 0x08;
@@ -32,6 +34,22 @@ PubSubClient mqtt_client(wifi_client);
 String wifi_ssid;
 String wifi_password;
 uint8_t next_i2c_address = kI2cFirstDynamicAddress;
+uint8_t effect_targets[kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1] = {0};
+
+void handleRoot();
+void handleSave();
+void handleControl();
+void handleEffect();
+
+enum EffectMode {
+  kEffectNone = 0,
+  kEffectFlicker,
+  kEffectRainbow,
+};
+
+EffectMode current_effect = kEffectNone;
+unsigned long last_effect_update = 0;
+float rainbow_hue = 0.0f;
 
 String buildTopic(uint8_t index) {
   return String(kTopicBase) + "/" + String(index + 1);
@@ -72,8 +90,60 @@ String buildProvisionPage(const String &message) {
   return page;
 }
 
+String buildControlPage() {
+  String page = "<!DOCTYPE html><html><head><meta charset='utf-8'>";
+  page += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
+  page += "<title>ESP32 RGB Control</title></head><body>";
+  page += "<h2>ESP32 RGB Control</h2>";
+  page += "<form method='POST' action='/control'>";
+  page += "<label>Farbe</label><br><input type='color' id='color' value='#ffffff'><br>";
+  page += "<label>R</label><input name='r' id='r' type='number' min='0' max='255' value='255'>";
+  page += "<label>G</label><input name='g' id='g' type='number' min='0' max='255' value='255'>";
+  page += "<label>B</label><input name='b' id='b' type='number' min='0' max='255' value='255'><br><br>";
+  page += "<strong>ATmega Auswahl</strong><br>";
+  for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
+    uint8_t index = i + 1;
+    page += "<label><input type='checkbox' name='t' value='" + String(index) + "' checked> ";
+    page += "LED " + String(index) + "</label><br>";
+  }
+  page += "<br><button type='submit'>Senden</button>";
+  page += "</form><hr>";
+  page += "<form method='POST' action='/effect'>";
+  page += "<label>Effekt</label><br>";
+  page += "<select name='effect'>";
+  page += "<option value='none'>Kein Effekt</option>";
+  page += "<option value='flicker'>Flackern</option>";
+  page += "<option value='rainbow'>Rainbow</option>";
+  page += "</select><br><br>";
+  page += "<strong>ATmega Auswahl</strong><br>";
+  for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
+    uint8_t index = i + 1;
+    page += "<label><input type='checkbox' name='t' value='" + String(index) + "' checked> ";
+    page += "LED " + String(index) + "</label><br>";
+  }
+  page += "<br><button type='submit'>Effekt starten</button>";
+  page += "</form>";
+  page += "<script>";
+  page += "const color=document.getElementById('color');";
+  page += "const r=document.getElementById('r');";
+  page += "const g=document.getElementById('g');";
+  page += "const b=document.getElementById('b');";
+  page += "color.addEventListener('input',()=>{";
+  page += "const hex=color.value.substring(1);";
+  page += "r.value=parseInt(hex.substring(0,2),16);";
+  page += "g.value=parseInt(hex.substring(2,4),16);";
+  page += "b.value=parseInt(hex.substring(4,6),16);";
+  page += "});";
+  page += "</script></body></html>";
+  return page;
+}
+
 void handleRoot() {
-  server.send(200, "text/html", buildProvisionPage(""));
+  if (WiFi.getMode() == WIFI_AP) {
+    server.send(200, "text/html", buildProvisionPage(""));
+  } else {
+    server.send(200, "text/html", buildControlPage());
+  }
 }
 
 void handleSave() {
@@ -94,6 +164,8 @@ void startProvisioningPortal() {
   WiFi.softAP(kProvisionApSsid);
   server.on("/", handleRoot);
   server.on("/save", HTTP_POST, handleSave);
+  server.on("/control", HTTP_POST, handleControl);
+  server.on("/effect", HTTP_POST, handleEffect);
   server.begin();
 }
 
@@ -125,6 +197,7 @@ void connectMqtt() {
       for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
         mqtt_client.subscribe(buildTopic(i).c_str());
       }
+      mqtt_client.subscribe(kEffectTopic);
     } else {
       delay(1000);
     }
@@ -167,6 +240,119 @@ void sendRgbToSlave(uint8_t address, uint8_t r, uint8_t g, uint8_t b) {
   Wire.endTransmission();
 }
 
+void clearEffectTargets() {
+  for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
+    effect_targets[i] = 0;
+  }
+}
+
+void setTargetsFromArgs() {
+  clearEffectTargets();
+  bool found = false;
+  int args = server.args();
+  for (int i = 0; i < args; ++i) {
+    if (server.argName(i) == "t") {
+      int index = server.arg(i).toInt();
+      if (index > 0) {
+        uint8_t offset = static_cast<uint8_t>(index - 1);
+        if (offset < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1)) {
+          effect_targets[offset] = 1;
+          found = true;
+        }
+      }
+    }
+  }
+  if (!found) {
+    for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
+      effect_targets[i] = 1;
+    }
+    return;
+  }
+}
+
+void sendRgbToTargets(uint8_t r, uint8_t g, uint8_t b, const uint8_t *targets) {
+  for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
+    if (targets == nullptr || targets[i] == 1) {
+      uint8_t address = kI2cFirstDynamicAddress + i;
+      sendRgbToSlave(address, r, g, b);
+    }
+  }
+}
+
+void handleControl() {
+  uint8_t r = static_cast<uint8_t>(server.arg("r").toInt());
+  uint8_t g = static_cast<uint8_t>(server.arg("g").toInt());
+  uint8_t b = static_cast<uint8_t>(server.arg("b").toInt());
+  setTargetsFromArgs();
+  current_effect = kEffectNone;
+  sendRgbToTargets(r, g, b, effect_targets);
+  server.send(200, "text/plain", "OK");
+}
+
+void handleEffect() {
+  String effect = server.arg("effect");
+  setTargetsFromArgs();
+  if (effect == "flicker") {
+    current_effect = kEffectFlicker;
+  } else if (effect == "rainbow") {
+    current_effect = kEffectRainbow;
+  } else {
+    current_effect = kEffectNone;
+  }
+  server.send(200, "text/plain", "OK");
+}
+
+bool parseEffectPayload(const char *payload, EffectMode &mode, uint8_t *targets) {
+  String message(payload);
+  int effect_pos = message.indexOf("effect=");
+  if (effect_pos >= 0) {
+    int effect_end = message.indexOf(';', effect_pos);
+    String value = message.substring(effect_pos + 7, effect_end < 0 ? message.length() : effect_end);
+    if (value == "flicker") {
+      mode = kEffectFlicker;
+    } else if (value == "rainbow") {
+      mode = kEffectRainbow;
+    } else {
+      mode = kEffectNone;
+    }
+  } else {
+    if (message.startsWith("flicker")) {
+      mode = kEffectFlicker;
+    } else if (message.startsWith("rainbow")) {
+      mode = kEffectRainbow;
+    } else {
+      mode = kEffectNone;
+    }
+  }
+
+  int targets_pos = message.indexOf("targets=");
+  for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
+    targets[i] = 0;
+  }
+  if (targets_pos < 0) {
+    for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
+      targets[i] = 1;
+    }
+    return true;
+  }
+  int start = targets_pos + 8;
+  while (start < message.length()) {
+    int comma = message.indexOf(',', start);
+    if (comma < 0) {
+      comma = message.length();
+    }
+    int index = message.substring(start, comma).toInt();
+    if (index > 0) {
+      uint8_t offset = static_cast<uint8_t>(index - 1);
+      if (offset < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1)) {
+        targets[offset] = 1;
+      }
+    }
+    start = comma + 1;
+  }
+  return true;
+}
+
 void mqttCallback(char *topic, byte *payload, unsigned int length) {
   char payload_buffer[32];
   if (length >= sizeof(payload_buffer)) {
@@ -174,6 +360,18 @@ void mqttCallback(char *topic, byte *payload, unsigned int length) {
   }
   memcpy(payload_buffer, payload, length);
   payload_buffer[length] = '\0';
+
+  if (strcmp(topic, kEffectTopic) == 0) {
+    EffectMode mode = kEffectNone;
+    uint8_t targets[kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1] = {0};
+    if (parseEffectPayload(payload_buffer, mode, targets)) {
+      for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
+        effect_targets[i] = targets[i];
+      }
+      current_effect = mode;
+    }
+    return;
+  }
 
   uint8_t r = 0;
   uint8_t g = 0;
@@ -220,6 +418,10 @@ void assignAddressIfNeeded() {
 void setup() {
   Wire.begin();
   loadStoredSettings();
+  clearEffectTargets();
+  for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
+    effect_targets[i] = 1;
+  }
 
   mqtt_client.setCallback(mqttCallback);
 
@@ -227,6 +429,10 @@ void setup() {
     startProvisioningPortal();
     return;
   }
+  server.on("/", handleRoot);
+  server.on("/control", HTTP_POST, handleControl);
+  server.on("/effect", HTTP_POST, handleEffect);
+  server.begin();
   connectMqtt();
 }
 
@@ -247,4 +453,55 @@ void loop() {
   }
   mqtt_client.loop();
   assignAddressIfNeeded();
+
+  if (current_effect == kEffectFlicker) {
+    if (millis() - last_effect_update > 80) {
+      last_effect_update = millis();
+      uint8_t brightness = static_cast<uint8_t>(180 + (esp_random() % 76));
+      uint8_t r = brightness;
+      uint8_t g = static_cast<uint8_t>(brightness * 0.55f);
+      uint8_t b = static_cast<uint8_t>(brightness * 0.08f);
+      sendRgbToTargets(r, g, b, effect_targets);
+    }
+  } else if (current_effect == kEffectRainbow) {
+    if (millis() - last_effect_update > 50) {
+      last_effect_update = millis();
+      rainbow_hue += 2.0f;
+      if (rainbow_hue >= 360.0f) {
+        rainbow_hue = 0.0f;
+      }
+      float hue = rainbow_hue;
+      float saturation = 1.0f;
+      float value = 1.0f;
+      float c = value * saturation;
+      float x = c * (1 - fabsf(fmodf(hue / 60.0f, 2) - 1));
+      float m = value - c;
+      float r1 = 0;
+      float g1 = 0;
+      float b1 = 0;
+      if (hue < 60) {
+        r1 = c;
+        g1 = x;
+      } else if (hue < 120) {
+        r1 = x;
+        g1 = c;
+      } else if (hue < 180) {
+        g1 = c;
+        b1 = x;
+      } else if (hue < 240) {
+        g1 = x;
+        b1 = c;
+      } else if (hue < 300) {
+        r1 = x;
+        b1 = c;
+      } else {
+        r1 = c;
+        b1 = x;
+      }
+      uint8_t r = static_cast<uint8_t>((r1 + m) * 255);
+      uint8_t g = static_cast<uint8_t>((g1 + m) * 255);
+      uint8_t b = static_cast<uint8_t>((b1 + m) * 255);
+      sendRgbToTargets(r, g, b, effect_targets);
+    }
+  }
 }

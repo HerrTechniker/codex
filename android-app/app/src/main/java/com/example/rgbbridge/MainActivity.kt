@@ -7,6 +7,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -23,6 +24,9 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -131,7 +135,10 @@ fun RgbBridgeApp(viewModel: MainViewModel = viewModel()) {
         modifier = Modifier.padding(padding),
         state = state,
         onColorChange = { r, g, b -> viewModel.updateColor(r, g, b) },
-        onLedIndexChange = { viewModel.updateLedIndex(it) },
+        onEffectChange = { viewModel.updateEffect(it) },
+        onAllTargetsChange = { viewModel.toggleAllTargets(it) },
+        onTargetToggle = { index, enabled -> viewModel.toggleTarget(index, enabled) },
+        onMaxTargetsChange = { viewModel.updateMaxTargets(it) },
       )
     }
   }
@@ -178,7 +185,10 @@ fun ColorControlScreen(
   modifier: Modifier = Modifier,
   state: ColorUiState,
   onColorChange: (Int, Int, Int) -> Unit,
-  onLedIndexChange: (Int) -> Unit,
+  onEffectChange: (String) -> Unit,
+  onAllTargetsChange: (Boolean) -> Unit,
+  onTargetToggle: (Int, Boolean) -> Unit,
+  onMaxTargetsChange: (Int) -> Unit,
 ) {
   Column(
     modifier = modifier
@@ -204,7 +214,16 @@ fun ColorControlScreen(
       RgbField("B", state.blue) { onColorChange(state.red, state.green, it) }
     }
 
-    LedIndexField(state.ledIndex, onLedIndexChange)
+    EffectSelector(current = state.effect, onEffectChange = onEffectChange)
+
+    TargetSelection(
+      maxTargets = state.maxTargets,
+      allTargets = state.allTargets,
+      selectedTargets = state.selectedTargets,
+      onAllTargetsChange = onAllTargetsChange,
+      onTargetToggle = onTargetToggle,
+      onMaxTargetsChange = onMaxTargetsChange,
+    )
   }
 }
 
@@ -223,17 +242,89 @@ fun RgbField(label: String, value: Int, onValueChange: (Int) -> Unit) {
 }
 
 @Composable
-fun LedIndexField(value: Int, onValueChange: (Int) -> Unit) {
-  OutlinedTextField(
-    value = value.toString(),
-    onValueChange = { text ->
-      val parsed = text.toIntOrNull()?.coerceAtLeast(1) ?: 1
-      onValueChange(parsed)
-    },
-    label = { Text("LED") },
-    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-    modifier = Modifier.fillMaxWidth(),
-  )
+fun EffectSelector(current: String, onEffectChange: (String) -> Unit) {
+  var expanded by remember { mutableStateOf(false) }
+  val effects = listOf("static" to "Kein Effekt", "flicker" to "Flackern", "rainbow" to "Rainbow")
+  val currentLabel = effects.firstOrNull { it.first == current }?.second ?: "Kein Effekt"
+
+  Column {
+    Text("Effekte")
+    Spacer(modifier = Modifier.height(8.dp))
+    Box {
+      OutlinedTextField(
+        value = currentLabel,
+        onValueChange = {},
+        label = { Text("Auswahl") },
+        readOnly = true,
+        modifier = Modifier.fillMaxWidth(),
+      )
+      Box(
+        modifier = Modifier
+          .matchParentSize()
+          .clickable { expanded = true },
+      )
+    }
+    DropdownMenu(
+      expanded = expanded,
+      onDismissRequest = { expanded = false },
+    ) {
+      effects.forEach { effect ->
+        DropdownMenuItem(
+          text = { Text(effect.second) },
+          onClick = {
+            onEffectChange(effect.first)
+            expanded = false
+          },
+        )
+      }
+    }
+  }
+}
+
+@Composable
+fun TargetSelection(
+  maxTargets: Int,
+  allTargets: Boolean,
+  selectedTargets: Set<Int>,
+  onAllTargetsChange: (Boolean) -> Unit,
+  onTargetToggle: (Int, Boolean) -> Unit,
+  onMaxTargetsChange: (Int) -> Unit,
+) {
+  Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Text("ATmega Auswahl")
+    OutlinedTextField(
+      value = maxTargets.toString(),
+      onValueChange = { text ->
+        val parsed = text.toIntOrNull()?.coerceIn(1, 32) ?: 1
+        onMaxTargetsChange(parsed)
+      },
+      label = { Text("Anzahl ATmega") },
+      keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+      modifier = Modifier.fillMaxWidth(),
+    )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Checkbox(
+        checked = allTargets,
+        onCheckedChange = { onAllTargetsChange(it) },
+      )
+      Text("Alle auswählen")
+    }
+    Column {
+      for (index in 1..maxTargets) {
+        val checked = allTargets || selectedTargets.contains(index)
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          modifier = Modifier.clickable { onTargetToggle(index, !checked) },
+        ) {
+          Checkbox(
+            checked = checked,
+            onCheckedChange = { onTargetToggle(index, it) },
+          )
+          Text("LED $index")
+        }
+      }
+    }
+  }
 }
 
 @Composable

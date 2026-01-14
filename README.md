@@ -18,6 +18,7 @@ Dieses Repo enthält zwei Arduino-Sketches:
 - Verbinde dich mit diesem WLAN und rufe `http://192.168.4.1` auf.
 - Dort kannst du SSID und Passwort speichern; der ESP32 startet danach neu.
 - Im WLAN-Modus meldet sich der ESP32 per mDNS als `esp32-rgb-bridge` und bietet einen HTTP-Service an.
+- Die Weboberfläche erlaubt Farbsteuerung, Effekte und die Auswahl der ATmega-Targets.
 
 ## MQTT Payload
 
@@ -68,3 +69,13 @@ Die App liegt unter `android-app/` und nutzt MQTT, um RGB-Daten an den Broker zu
 - Weitere ESP32 lassen sich im seitlichen Menü (☰ oben links) hinzufügen.
 - Im Menü werden alle gespeicherten ESP32 angezeigt und können umbenannt werden.
 - Ein Farbkreis sowie manuelle RGB-Eingabe senden Änderungen direkt als `R,G,B` an das MQTT-Topic.
+- Ziel-ATmegas können ausgewählt werden (Standard: alle).
+- Effekte wie Flackern und Rainbow lassen sich aktivieren und werden an den ESP32 übertragen.
+
+## Web UI (ESP32)
+
+Im WLAN-Modus kann die Weboberfläche über `http://<esp32-ip>/` genutzt werden:
+
+- Farbkreis und RGB-Felder senden direkt an die ausgewählten ATmega-Targets.
+- Effekte (Flackern, Rainbow) können gestartet/gestoppt werden.
+- Standardmäßig sind alle Targets aktiviert.

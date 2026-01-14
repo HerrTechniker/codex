@@ -15,7 +15,10 @@ data class ColorUiState(
   val red: Int = 0,
   val green: Int = 0,
   val blue: Int = 0,
-  val ledIndex: Int = 1,
+  val maxTargets: Int = 4,
+  val allTargets: Boolean = true,
+  val selectedTargets: Set<Int> = emptySet(),
+  val effect: String = "static",
   val isDiscovering: Boolean = false,
   val deviceState: DeviceState = DeviceState(),
 )
@@ -66,13 +69,44 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   }
 
   fun updateColor(red: Int, green: Int, blue: Int) {
-    _uiState.value = _uiState.value.copy(red = red, green = green, blue = blue)
+    _uiState.value = _uiState.value.copy(
+      red = red,
+      green = green,
+      blue = blue,
+      effect = "static",
+    )
     schedulePublish()
   }
 
-  fun updateLedIndex(index: Int) {
-    _uiState.value = _uiState.value.copy(ledIndex = index)
+  fun updateMaxTargets(value: Int) {
+    _uiState.value = _uiState.value.copy(maxTargets = value.coerceAtLeast(1))
     schedulePublish()
+  }
+
+  fun toggleAllTargets(enabled: Boolean) {
+    _uiState.value = _uiState.value.copy(allTargets = enabled)
+    schedulePublish()
+  }
+
+  fun toggleTarget(index: Int, enabled: Boolean) {
+    val state = _uiState.value
+    val current = if (state.allTargets) {
+      (1..state.maxTargets).toMutableSet()
+    } else {
+      state.selectedTargets.toMutableSet()
+    }
+    if (enabled) {
+      current.add(index)
+    } else {
+      current.remove(index)
+    }
+    _uiState.value = _uiState.value.copy(selectedTargets = current, allTargets = false)
+    schedulePublish()
+  }
+
+  fun updateEffect(effect: String) {
+    _uiState.value = _uiState.value.copy(effect = effect)
+    publishEffect()
   }
 
   private fun schedulePublish() {
@@ -81,10 +115,41 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       val state = _uiState.value
       val device = resolveSelectedDevice(state.deviceState)
       if (device != null) {
-        val topic = "${device.topicBase}/${state.ledIndex}"
         val payload = "${state.red},${state.green},${state.blue}"
-        publisher.publish(device, topic, payload)
+        if (state.effect == "static") {
+          val targets = resolveTargets(state)
+          targets.forEach { index ->
+            val topic = "${device.topicBase}/$index"
+            publisher.publish(device, topic, payload)
+          }
+        }
       }
+    }
+  }
+
+  private fun publishEffect() {
+    publishJob?.cancel()
+    publishJob = viewModelScope.launch {
+      val state = _uiState.value
+      val device = resolveSelectedDevice(state.deviceState)
+      if (device != null) {
+        val targets = resolveTargets(state)
+        val effectName = if (state.effect == "static") "none" else state.effect
+        val targetPayload = if (targets.isEmpty()) {
+          "effect=${effectName}"
+        } else {
+          "effect=${effectName};targets=${targets.joinToString(\",\")}"
+        }
+        publisher.publish(device, "${device.topicBase}/effect", targetPayload)
+      }
+    }
+  }
+
+  private fun resolveTargets(state: ColorUiState): List<Int> {
+    return if (state.allTargets) {
+      (1..state.maxTargets).toList()
+    } else {
+      state.selectedTargets.sorted()
     }
   }
 
