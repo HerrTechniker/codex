@@ -40,6 +40,7 @@ void handleRoot();
 void handleSave();
 void handleControl();
 void handleEffect();
+void handleStatus();
 
 enum EffectMode {
   kEffectNone = 0,
@@ -95,35 +96,38 @@ String buildControlPage() {
   page += "<meta name='viewport' content='width=device-width,initial-scale=1'>";
   page += "<title>ESP32 RGB Control</title></head><body>";
   page += "<h2>ESP32 RGB Control</h2>";
-  page += "<form method='POST' action='/control'>";
+  page += "<form method='POST' action='/control' id='color-form'>";
   page += "<label>Farbe</label><br><input type='color' id='color' value='#ffffff'><br>";
   page += "<label>R</label><input name='r' id='r' type='number' min='0' max='255' value='255'>";
   page += "<label>G</label><input name='g' id='g' type='number' min='0' max='255' value='255'>";
   page += "<label>B</label><input name='b' id='b' type='number' min='0' max='255' value='255'><br><br>";
-  page += "<strong>ATmega Auswahl</strong><br>";
-  for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
-    uint8_t index = i + 1;
-    page += "<label><input type='checkbox' name='t' value='" + String(index) + "' checked> ";
-    page += "LED " + String(index) + "</label><br>";
-  }
+  page += "<strong>ATmega Auswahl</strong><br><div id='targets-color'></div>";
   page += "<br><button type='submit'>Senden</button>";
   page += "</form><hr>";
-  page += "<form method='POST' action='/effect'>";
+  page += "<form method='POST' action='/effect' id='effect-form'>";
   page += "<label>Effekt</label><br>";
   page += "<select name='effect'>";
   page += "<option value='none'>Kein Effekt</option>";
   page += "<option value='flicker'>Flackern</option>";
   page += "<option value='rainbow'>Rainbow</option>";
   page += "</select><br><br>";
-  page += "<strong>ATmega Auswahl</strong><br>";
-  for (uint8_t i = 0; i < (kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1); ++i) {
-    uint8_t index = i + 1;
-    page += "<label><input type='checkbox' name='t' value='" + String(index) + "' checked> ";
-    page += "LED " + String(index) + "</label><br>";
-  }
+  page += "<strong>ATmega Auswahl</strong><br><div id='targets-effect'></div>";
   page += "<br><button type='submit'>Effekt starten</button>";
   page += "</form>";
   page += "<script>";
+  page += "const renderTargets=(count)=>{";
+  page += "const color=document.getElementById('targets-color');";
+  page += "const effect=document.getElementById('targets-effect');";
+  page += "const build=(container)=>{container.innerHTML='';";
+  page += "for(let i=1;i<=count;i++){";
+  page += "const label=document.createElement('label');";
+  page += "const cb=document.createElement('input');";
+  page += "cb.type='checkbox';cb.name='t';cb.value=i;cb.checked=true;";
+  page += "label.appendChild(cb);label.append(' LED '+i);";
+  page += "container.appendChild(label);container.appendChild(document.createElement('br'));}};";
+  page += "build(color);build(effect);};";
+  page += "const updateTargets=()=>{fetch('/status').then(r=>r.json()).then(data=>{";
+  page += "const count=data.count||0;renderTargets(count>0?count:1);}).catch(()=>{});};";
   page += "const color=document.getElementById('color');";
   page += "const r=document.getElementById('r');";
   page += "const g=document.getElementById('g');";
@@ -134,6 +138,7 @@ String buildControlPage() {
   page += "g.value=parseInt(hex.substring(2,4),16);";
   page += "b.value=parseInt(hex.substring(4,6),16);";
   page += "});";
+  page += "updateTargets();setInterval(updateTargets,5000);";
   page += "</script></body></html>";
   return page;
 }
@@ -166,6 +171,7 @@ void startProvisioningPortal() {
   server.on("/save", HTTP_POST, handleSave);
   server.on("/control", HTTP_POST, handleControl);
   server.on("/effect", HTTP_POST, handleEffect);
+  server.on("/status", HTTP_GET, handleStatus);
   server.begin();
 }
 
@@ -198,6 +204,8 @@ void connectMqtt() {
         mqtt_client.subscribe(buildTopic(i).c_str());
       }
       mqtt_client.subscribe(kEffectTopic);
+      publishStatus();
+      publishHaDiscovery();
     } else {
       delay(1000);
     }
@@ -238,6 +246,45 @@ void sendRgbToSlave(uint8_t address, uint8_t r, uint8_t g, uint8_t b) {
   Wire.write(g);
   Wire.write(b);
   Wire.endTransmission();
+}
+
+uint8_t assignedCount() {
+  if (next_i2c_address <= kI2cFirstDynamicAddress) {
+    return 0;
+  }
+  return static_cast<uint8_t>(next_i2c_address - kI2cFirstDynamicAddress);
+}
+
+void publishStatus() {
+  if (!mqtt_client.connected()) {
+    return;
+  }
+  String payload = String("{\"count\":") + String(assignedCount()) + "}";
+  mqtt_client.publish("rgbled/status", payload.c_str(), true);
+}
+
+void publishHaDiscovery() {
+  if (!mqtt_client.connected()) {
+    return;
+  }
+  uint8_t count = assignedCount();
+  for (uint8_t i = 1; i <= count; ++i) {
+    String topic = "homeassistant/light/esp32_rgb_" + String(i) + "/config";
+    String payload = "{";
+    payload += "\"name\":\"ESP32 RGB " + String(i) + "\",";
+    payload += "\"unique_id\":\"esp32_rgb_" + String(i) + "\",";
+    payload += "\"command_topic\":\"" + String(kTopicBase) + "/" + String(i) + "\",";
+    payload += "\"rgb\":true,";
+    payload += "\"rgb_command_template\":\"{{ red }},{{ green }},{{ blue }}\",";
+    payload += "\"optimistic\":true";
+    payload += "}";
+    mqtt_client.publish(topic.c_str(), payload.c_str(), true);
+  }
+}
+
+void handleStatus() {
+  String payload = String("{\"count\":") + String(assignedCount()) + "}";
+  server.send(200, "application/json", payload);
 }
 
 void clearEffectTargets() {
@@ -412,6 +459,8 @@ void assignAddressIfNeeded() {
   Wire.write(next_i2c_address);
   if (Wire.endTransmission() == 0) {
     saveNextI2cAddress(next_i2c_address + 1);
+    publishStatus();
+    publishHaDiscovery();
   }
 }
 
@@ -432,8 +481,11 @@ void setup() {
   server.on("/", handleRoot);
   server.on("/control", HTTP_POST, handleControl);
   server.on("/effect", HTTP_POST, handleEffect);
+  server.on("/status", HTTP_GET, handleStatus);
   server.begin();
   connectMqtt();
+  publishStatus();
+  publishHaDiscovery();
 }
 
 void loop() {

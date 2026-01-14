@@ -19,6 +19,7 @@ Dieses Repo enthält zwei Arduino-Sketches:
 - Dort kannst du SSID und Passwort speichern; der ESP32 startet danach neu.
 - Im WLAN-Modus meldet sich der ESP32 per mDNS als `esp32-rgb-bridge` und bietet einen HTTP-Service an.
 - Die Weboberfläche erlaubt Farbsteuerung, Effekte und die Auswahl der ATmega-Targets.
+- Die Liste der Targets wird automatisch aktualisiert, sobald ein neuer ATmega eine Adresse erhalten hat.
 
 ## MQTT Payload
 
@@ -71,6 +72,7 @@ Die App liegt unter `android-app/` und nutzt MQTT, um RGB-Daten an den Broker zu
 - Ein Farbkreis sowie manuelle RGB-Eingabe senden Änderungen direkt als `R,G,B` an das MQTT-Topic.
 - Ziel-ATmegas können ausgewählt werden (Standard: alle).
 - Effekte wie Flackern und Rainbow lassen sich aktivieren und werden an den ESP32 übertragen.
+- Die App fragt regelmäßig den Status ab und aktualisiert die Target-Liste automatisch.
 
 ## Web UI (ESP32)
 
@@ -79,3 +81,12 @@ Im WLAN-Modus kann die Weboberfläche über `http://<esp32-ip>/` genutzt werden:
 - Farbkreis und RGB-Felder senden direkt an die ausgewählten ATmega-Targets.
 - Effekte (Flackern, Rainbow) können gestartet/gestoppt werden.
 - Standardmäßig sind alle Targets aktiviert.
+- Die Weboberfläche aktualisiert die Target-Liste automatisch, sobald neue ATmegas verbunden werden.
+
+## Home Assistant Integration (MQTT)
+
+Der ESP32 veröffentlicht MQTT Discovery für Home Assistant auf Basis der vergebenen I2C-Adressen.
+
+- MQTT Broker in Home Assistant konfigurieren.
+- Nach dem Verbinden erscheinen neue MQTT-Lichter als `ESP32 RGB 1`, `ESP32 RGB 2`, usw.
+- Die Entitäten arbeiten im optimistischen Modus und nutzen das Topic `rgbled/<index>` mit `R,G,B` Payload.

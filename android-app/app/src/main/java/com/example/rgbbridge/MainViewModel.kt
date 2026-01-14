@@ -5,11 +5,16 @@ import android.net.nsd.NsdServiceInfo
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
+import java.net.URL
 
 data class ColorUiState(
   val red: Int = 0,
@@ -32,11 +37,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   val uiState: StateFlow<ColorUiState> = _uiState.asStateFlow()
 
   private var publishJob: Job? = null
+  private var statusJob: Job? = null
+  private var lastStatusHost: String? = null
 
   init {
     viewModelScope.launch {
       store.state.collectLatest { state ->
         _uiState.value = _uiState.value.copy(deviceState = state)
+        val selected = resolveSelectedDevice(state)
+        if (selected != null && selected.host != lastStatusHost) {
+          lastStatusHost = selected.host
+          startStatusPolling(selected)
+        }
         if (state.devices.isEmpty()) {
           startDiscovery()
         }
@@ -159,6 +171,35 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       state.devices.firstOrNull()
     } else {
       state.devices.firstOrNull { it.id == selected }
+    }
+  }
+
+  private fun startStatusPolling(device: Esp32Device) {
+    statusJob?.cancel()
+    statusJob = viewModelScope.launch {
+      while (true) {
+        val count = fetchTargetCount(device.host)
+        if (count != null && count > 0) {
+          _uiState.value = _uiState.value.copy(maxTargets = count)
+        }
+        delay(5000)
+      }
+    }
+  }
+
+  private suspend fun fetchTargetCount(host: String): Int? {
+    return withContext(Dispatchers.IO) {
+      runCatching {
+        val url = URL("http://$host/status")
+        val conn = url.openConnection() as HttpURLConnection
+        conn.connectTimeout = 2000
+        conn.readTimeout = 2000
+        conn.inputStream.bufferedReader().use { reader ->
+          val body = reader.readText()
+          val match = Regex("\"count\"\\s*:\\s*(\\d+)").find(body)
+          match?.groupValues?.get(1)?.toInt()
+        }
+      }.getOrNull()
     }
   }
 
