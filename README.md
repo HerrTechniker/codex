@@ -87,6 +87,33 @@ Im WLAN-Modus kann die Weboberfläche über `http://<esp32-ip>/` genutzt werden:
 
 Der ESP32 veröffentlicht MQTT Discovery für Home Assistant auf Basis der vergebenen I2C-Adressen.
 
-- MQTT Broker in Home Assistant konfigurieren.
-- Nach dem Verbinden erscheinen neue MQTT-Lichter als `ESP32 RGB 1`, `ESP32 RGB 2`, usw.
-- Die Entitäten arbeiten im optimistischen Modus und nutzen das Topic `rgbled/<index>` mit `R,G,B` Payload.
+### Schritt-für-Schritt
+
+1. **MQTT Broker einrichten**
+   - In Home Assistant: *Einstellungen → Add-ons* (oder externer Broker).
+   - Mosquitto Add-on installieren/starten, Benutzer/Passwort anlegen.
+2. **MQTT Integration hinzufügen**
+   - *Einstellungen → Geräte & Dienste → Integration hinzufügen → MQTT*.
+   - Broker-Adresse, Port, Benutzer/Passwort eintragen.
+3. **ESP32 auf den Broker konfigurieren**
+   - In `esp32/esp32_mqtt_bridge.ino` `kMqttHost`, `kMqttPort`, `kMqttUser`, `kMqttPassword` setzen.
+   - Sketch flashen und neu starten.
+4. **Discovery prüfen**
+   - Nach erfolgreicher MQTT-Verbindung veröffentlicht der ESP32 Discovery-Daten.
+   - In Home Assistant erscheinen neue Lichter `ESP32 RGB 1`, `ESP32 RGB 2`, usw.
+5. **Steuerung testen**
+   - Ein Light auswählen und Farbe setzen.
+   - Der ESP32 empfängt `rgbled/<index>` mit `R,G,B` Payload.
+
+**Hinweis:** Die Entitäten arbeiten im optimistischen Modus und nutzen das Topic `rgbled/<index>`.
+
+## Serial Monitor Debug
+
+Der ESP32 gibt beim Start wichtige Infos aus (WLAN/IP, AP-IP, MQTT-Status, neue I2C-Adressen).
+
+1. Baudrate auf **115200** setzen.
+2. Nach dem Start erscheinen z. B.:
+   - `AP IP: 192.168.4.1` (Provisioning-Modus)
+   - `WLAN verbunden, IP: <esp32-ip>`
+   - `Webserver im WLAN-Modus gestartet.`
+   - `MQTT verbunden.`

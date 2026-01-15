@@ -42,6 +42,10 @@ void handleControl();
 void handleEffect();
 void handleStatus();
 
+void logLine(const String &message) {
+  Serial.println(message);
+}
+
 enum EffectMode {
   kEffectNone = 0,
   kEffectFlicker,
@@ -167,32 +171,41 @@ void handleSave() {
 void startProvisioningPortal() {
   WiFi.mode(WIFI_AP);
   WiFi.softAP(kProvisionApSsid);
+  logLine(String("AP gestartet: ") + kProvisionApSsid);
+  logLine(String("AP IP: ") + WiFi.softAPIP().toString());
   server.on("/", handleRoot);
   server.on("/save", HTTP_POST, handleSave);
   server.on("/control", HTTP_POST, handleControl);
   server.on("/effect", HTTP_POST, handleEffect);
   server.on("/status", HTTP_GET, handleStatus);
   server.begin();
+  logLine("Webserver im AP-Modus gestartet.");
 }
 
 bool connectWifi() {
   if (wifi_ssid.isEmpty()) {
+    logLine("Keine gespeicherten WLAN-Daten gefunden.");
     return false;
   }
   WiFi.mode(WIFI_STA);
   WiFi.begin(wifi_ssid.c_str(), wifi_password.c_str());
+  logLine(String("Verbinde mit WLAN: ") + wifi_ssid);
 
   unsigned long start = millis();
   while (WiFi.status() != WL_CONNECTED && millis() - start < 15000) {
     delay(250);
   }
   if (WiFi.status() != WL_CONNECTED) {
+    logLine("WLAN-Verbindung fehlgeschlagen.");
     return false;
   }
+  logLine(String("WLAN verbunden, IP: ") + WiFi.localIP().toString());
   if (!MDNS.begin("esp32-rgb-bridge")) {
+    logLine("mDNS Start fehlgeschlagen.");
     return true;
   }
   MDNS.addService("http", "tcp", 80);
+  logLine("mDNS gestartet: esp32-rgb-bridge.local");
   return true;
 }
 
@@ -206,7 +219,9 @@ void connectMqtt() {
       mqtt_client.subscribe(kEffectTopic);
       publishStatus();
       publishHaDiscovery();
+      logLine("MQTT verbunden.");
     } else {
+      logLine("MQTT Verbindung fehlgeschlagen, retry...");
       delay(1000);
     }
   }
@@ -461,10 +476,14 @@ void assignAddressIfNeeded() {
     saveNextI2cAddress(next_i2c_address + 1);
     publishStatus();
     publishHaDiscovery();
+    logLine(String("Neue I2C Adresse vergeben: 0x") + String(next_i2c_address - 1, HEX));
   }
 }
 
 void setup() {
+  Serial.begin(115200);
+  delay(200);
+  logLine("ESP32 RGB Bridge startet...");
   Wire.begin();
   loadStoredSettings();
   clearEffectTargets();
@@ -483,6 +502,7 @@ void setup() {
   server.on("/effect", HTTP_POST, handleEffect);
   server.on("/status", HTTP_GET, handleStatus);
   server.begin();
+  logLine("Webserver im WLAN-Modus gestartet.");
   connectMqtt();
   publishStatus();
   publishHaDiscovery();
