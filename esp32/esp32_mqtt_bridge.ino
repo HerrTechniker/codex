@@ -42,15 +42,15 @@ void handleControl();
 void handleEffect();
 void handleStatus();
 
-void logLine(const String &message) {
-  Serial.println(message);
-}
-
 enum EffectMode {
   kEffectNone = 0,
   kEffectFlicker,
   kEffectRainbow,
 };
+
+void logLine(const String &message) {
+  Serial.println(message);
+}
 
 EffectMode current_effect = kEffectNone;
 unsigned long last_effect_update = 0;
