@@ -117,3 +117,4 @@ Der ESP32 gibt beim Start wichtige Infos aus (WLAN/IP, AP-IP, MQTT-Status, neue 
    - `WLAN verbunden, IP: <esp32-ip>`
    - `Webserver im WLAN-Modus gestartet.`
    - `MQTT verbunden.`
+   - `I2C Scan gestartet...` / `I2C Gerät gefunden: 0x..`

@@ -41,6 +41,7 @@ void handleSave();
 void handleControl();
 void handleEffect();
 void handleStatus();
+void logI2cScan();
 
 enum EffectMode {
   kEffectNone = 0,
@@ -467,6 +468,7 @@ void assignAddressIfNeeded() {
     return;
   }
   if (!slavePresent(kI2cDefaultSlaveAddress)) {
+    logLine("Kein ATmega unter Default-Adresse 0x08 gefunden.");
     return;
   }
   Wire.beginTransmission(kI2cDefaultSlaveAddress);
@@ -477,6 +479,23 @@ void assignAddressIfNeeded() {
     publishStatus();
     publishHaDiscovery();
     logLine(String("Neue I2C Adresse vergeben: 0x") + String(next_i2c_address - 1, HEX));
+  } else {
+    logLine("I2C-Adressvergabe fehlgeschlagen (NACK).");
+  }
+}
+
+void logI2cScan() {
+  logLine("I2C Scan gestartet...");
+  uint8_t found = 0;
+  for (uint8_t address = 1; address < 127; ++address) {
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() == 0) {
+      logLine(String("I2C Gerät gefunden: 0x") + String(address, HEX));
+      found++;
+    }
+  }
+  if (found == 0) {
+    logLine("Keine I2C Geräte gefunden.");
   }
 }
 
@@ -497,6 +516,7 @@ void setup() {
     startProvisioningPortal();
     return;
   }
+  logI2cScan();
   server.on("/", handleRoot);
   server.on("/control", HTTP_POST, handleControl);
   server.on("/effect", HTTP_POST, handleEffect);
