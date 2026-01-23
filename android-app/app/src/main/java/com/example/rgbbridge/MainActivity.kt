@@ -227,9 +227,21 @@ fun ColorControlScreen(
       )
 
       Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        RgbField("R", state.red) { onColorChange(it, state.green, state.blue) }
-        RgbField("G", state.green) { onColorChange(state.red, it, state.blue) }
-        RgbField("B", state.blue) { onColorChange(state.red, state.green, it) }
+        RgbField(
+          label = "R",
+          value = state.red,
+          modifier = Modifier.weight(1f),
+        ) { onColorChange(it, state.green, state.blue) }
+        RgbField(
+          label = "G",
+          value = state.green,
+          modifier = Modifier.weight(1f),
+        ) { onColorChange(state.red, it, state.blue) }
+        RgbField(
+          label = "B",
+          value = state.blue,
+          modifier = Modifier.weight(1f),
+        ) { onColorChange(state.red, state.green, it) }
       }
     }
 
@@ -251,7 +263,12 @@ fun ColorControlScreen(
 }
 
 @Composable
-fun RgbField(label: String, value: Int, onValueChange: (Int) -> Unit) {
+fun RgbField(
+  label: String,
+  value: Int,
+  modifier: Modifier = Modifier,
+  onValueChange: (Int) -> Unit,
+) {
   OutlinedTextField(
     value = value.toString(),
     onValueChange = { text ->
@@ -260,7 +277,7 @@ fun RgbField(label: String, value: Int, onValueChange: (Int) -> Unit) {
     },
     label = { Text(label) },
     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-    modifier = Modifier.weight(1f),
+    modifier = modifier,
   )
 }
 
