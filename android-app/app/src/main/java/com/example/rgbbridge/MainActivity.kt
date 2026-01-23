@@ -35,6 +35,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -57,6 +58,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.launch
@@ -111,12 +114,16 @@ fun RgbBridgeApp(viewModel: MainViewModel = viewModel()) {
       ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-          DrawerContent(
-            state = state.deviceState,
-            onAddClick = { showAddDialog = true },
-            onDeviceSelected = { viewModel.selectDevice(it) },
-            onEditDevice = { editingDevice = it },
-          )
+          ModalDrawerSheet(
+            drawerContainerColor = MaterialTheme.colorScheme.surface,
+          ) {
+            DrawerContent(
+              state = state.deviceState,
+              onAddClick = { showAddDialog = true },
+              onDeviceSelected = { viewModel.selectDevice(it) },
+              onEditDevice = { editingDevice = it },
+            )
+          }
         },
       ) {
         Scaffold(
@@ -207,9 +214,11 @@ fun ColorControlScreen(
   onTargetToggle: (Int, Boolean) -> Unit,
   onMaxTargetsChange: (Int) -> Unit,
 ) {
+  val scrollState = rememberScrollState()
   Column(
     modifier = modifier
       .fillMaxSize()
+      .verticalScroll(scrollState)
       .padding(16.dp),
     verticalArrangement = Arrangement.spacedBy(16.dp),
   ) {
@@ -420,6 +429,9 @@ fun ColorWheel(
     modifier = modifier
       .pointerInput(Unit) {
         detectDragGestures { change, _ ->
+          if (radius.value <= 0f) {
+            return@detectDragGestures
+          }
           val position = change.position
           val dx = position.x - center.value.x
           val dy = position.y - center.value.y

@@ -49,9 +49,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
           lastStatusHost = selected.host
           startStatusPolling(selected)
         }
-        if (state.devices.isEmpty()) {
-          startDiscovery()
-        }
       }
     }
   }
