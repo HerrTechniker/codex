@@ -35,6 +35,7 @@ String wifi_ssid;
 String wifi_password;
 uint8_t next_i2c_address = kI2cFirstDynamicAddress;
 uint8_t effect_targets[kI2cLastDynamicAddress - kI2cFirstDynamicAddress + 1] = {0};
+uint8_t last_i2c_scan_count = 0;
 
 void handleRoot();
 void handleSave();
@@ -42,6 +43,7 @@ void handleControl();
 void handleEffect();
 void handleStatus();
 void logI2cScan();
+uint8_t scanI2cDevices(bool log_results);
 
 enum EffectMode {
   kEffectNone = 0,
@@ -271,11 +273,30 @@ uint8_t assignedCount() {
   return static_cast<uint8_t>(next_i2c_address - kI2cFirstDynamicAddress);
 }
 
+uint8_t scanI2cDevices(bool log_results) {
+  uint8_t found = 0;
+  for (uint8_t address = kI2cFirstDynamicAddress; address <= kI2cLastDynamicAddress; ++address) {
+    Wire.beginTransmission(address);
+    if (Wire.endTransmission() == 0) {
+      ++found;
+      if (log_results) {
+        logLine(String("I2C Gerät gefunden: 0x") + String(address, HEX));
+      }
+    }
+  }
+  last_i2c_scan_count = found;
+  return found;
+}
+
 void publishStatus() {
   if (!mqtt_client.connected()) {
     return;
   }
-  String payload = String("{\"count\":") + String(assignedCount()) + "}";
+  uint8_t count = scanI2cDevices(false);
+  if (count < assignedCount()) {
+    count = assignedCount();
+  }
+  String payload = String("{\"count\":") + String(count) + "}";
   mqtt_client.publish("rgbled/status", payload.c_str(), true);
 }
 
@@ -299,7 +320,11 @@ void publishHaDiscovery() {
 }
 
 void handleStatus() {
-  String payload = String("{\"count\":") + String(assignedCount()) + "}";
+  uint8_t count = scanI2cDevices(false);
+  if (count < assignedCount()) {
+    count = assignedCount();
+  }
+  String payload = String("{\"count\":") + String(count) + "}";
   server.send(200, "application/json", payload);
 }
 
@@ -486,14 +511,7 @@ void assignAddressIfNeeded() {
 
 void logI2cScan() {
   logLine("I2C Scan gestartet...");
-  uint8_t found = 0;
-  for (uint8_t address = 1; address < 127; ++address) {
-    Wire.beginTransmission(address);
-    if (Wire.endTransmission() == 0) {
-      logLine(String("I2C Gerät gefunden: 0x") + String(address, HEX));
-      found++;
-    }
-  }
+  uint8_t found = scanI2cDevices(true);
   if (found == 0) {
     logLine("Keine I2C Geräte gefunden.");
   }
