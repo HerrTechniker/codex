@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.preferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -16,8 +16,8 @@ import java.util.UUID
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "rgb_bridge")
 
-private val DEVICES_KEY = preferencesKey<String>("devices_json")
-private val SELECTED_KEY = preferencesKey<String>("selected_device")
+private val DEVICES_KEY = stringPreferencesKey("devices_json")
+private val SELECTED_KEY = stringPreferencesKey("selected_device")
 
 @Serializable
 data class Esp32Device(
