@@ -493,7 +493,6 @@ void assignAddressIfNeeded() {
     return;
   }
   if (!slavePresent(kI2cDefaultSlaveAddress)) {
-    logLine("Kein ATmega unter Default-Adresse 0x08 gefunden.");
     return;
   }
   Wire.beginTransmission(kI2cDefaultSlaveAddress);

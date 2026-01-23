@@ -45,9 +45,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       store.state.collectLatest { state ->
         _uiState.value = _uiState.value.copy(deviceState = state)
         val selected = resolveSelectedDevice(state)
-        if (selected != null && selected.host != lastStatusHost) {
-          lastStatusHost = selected.host
-          startStatusPolling(selected)
+        val statusHost = selected?.statusHost?.ifBlank { selected.host }
+        if (statusHost != null && statusHost != lastStatusHost) {
+          lastStatusHost = statusHost
+          startStatusPolling(selected, statusHost)
         }
       }
     }
@@ -160,11 +161,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
   }
 
-  private fun startStatusPolling(device: Esp32Device) {
+  private fun startStatusPolling(device: Esp32Device, statusHost: String) {
     statusJob?.cancel()
     statusJob = viewModelScope.launch {
       while (true) {
-        val count = fetchTargetCount(device.host)
+        val count = fetchTargetCount(statusHost)
         if (count != null && count >= 0) {
           val state = _uiState.value
           val trimmed = state.selectedTargets.filter { it <= count }.toSet()
@@ -203,6 +204,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       host = host,
       port = 1883,
       topicBase = "rgbled",
+      statusHost = host,
     )
   }
 }

@@ -514,6 +514,7 @@ fun DeviceDialog(
   var topicBase by remember { mutableStateOf(initial.topicBase) }
   var user by remember { mutableStateOf(initial.mqttUser) }
   var password by remember { mutableStateOf(initial.mqttPassword) }
+  var statusHost by remember { mutableStateOf(initial.statusHost.ifBlank { initial.host }) }
 
   AlertDialog(
     onDismissRequest = onDismiss,
@@ -533,6 +534,11 @@ fun DeviceDialog(
           onValueChange = { topicBase = it },
           label = { Text("Topic-Basis") },
         )
+        OutlinedTextField(
+          value = statusHost,
+          onValueChange = { statusHost = it },
+          label = { Text("ESP32 Status-Host") },
+        )
         OutlinedTextField(value = user, onValueChange = { user = it }, label = { Text("MQTT User") })
         OutlinedTextField(
           value = password,
@@ -550,6 +556,7 @@ fun DeviceDialog(
           topicBase = topicBase.ifBlank { "rgbled" },
           mqttUser = user,
           mqttPassword = password,
+          statusHost = statusHost.ifBlank { host.ifBlank { "192.168.4.1" } },
         )
         onSave(updated)
       }) {

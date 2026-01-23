@@ -28,6 +28,7 @@ data class Esp32Device(
   val topicBase: String = "rgbled",
   val mqttUser: String = "",
   val mqttPassword: String = "",
+  val statusHost: String = "",
 )
 
 @Serializable
