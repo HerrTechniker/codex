@@ -48,6 +48,7 @@ dependencies {
   implementation("androidx.lifecycle:lifecycle-runtime-compose:2.7.0")
   implementation("androidx.compose.material:material-icons-extended:1.5.4")
   implementation("androidx.datastore:datastore:1.0.0")
+  implementation("androidx.datastore:datastore-preferences:1.0.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
   implementation("org.eclipse.paho:org.eclipse.paho.client.mqttv3:1.2.5")
 
