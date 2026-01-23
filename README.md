@@ -104,6 +104,11 @@ Der ESP32 veröffentlicht MQTT Discovery für Home Assistant auf Basis der verge
 5. **Steuerung testen**
    - Ein Light auswählen und Farbe setzen.
    - Der ESP32 empfängt `rgbled/<index>` mit `R,G,B` Payload.
+6. **Entität öffnen & Farbkreis nutzen**
+   - *Einstellungen → Geräte & Dienste → MQTT → Geräte* öffnen und das Gerät **ESP32 RGB** auswählen.
+   - In der Entitätenliste findest du **ESP32 RGB 1**, **ESP32 RGB 2**, usw.
+   - Für die Startseite: *Übersicht → Bearbeiten → Karte hinzufügen → Licht* auswählen und die gewünschte Entität wählen.
+   - Die Licht‑Karte zeigt einen **Farbkreis** sowie **Ein/Aus** zum direkten Steuern der LED.
 
 **Hinweis:** Die Entitäten arbeiten im optimistischen Modus und nutzen das Topic `rgbled/<index>`.
 
