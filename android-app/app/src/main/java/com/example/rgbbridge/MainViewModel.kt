@@ -176,8 +176,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     statusJob = viewModelScope.launch {
       while (true) {
         val count = fetchTargetCount(device.host)
-        if (count != null && count > 0) {
-          _uiState.value = _uiState.value.copy(maxTargets = count)
+        if (count != null && count >= 0) {
+          val state = _uiState.value
+          val trimmed = state.selectedTargets.filter { it <= count }.toSet()
+          val keepAllTargets = state.allTargets
+          _uiState.value = state.copy(
+            maxTargets = count,
+            selectedTargets = trimmed,
+            allTargets = if (keepAllTargets) true else trimmed.isNotEmpty(),
+          )
         }
         delay(5000)
       }
