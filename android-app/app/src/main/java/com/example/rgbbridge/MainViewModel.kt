@@ -20,7 +20,7 @@ data class ColorUiState(
   val red: Int = 0,
   val green: Int = 0,
   val blue: Int = 0,
-  val maxTargets: Int = 4,
+  val maxTargets: Int = 1,
   val allTargets: Boolean = true,
   val selectedTargets: Set<Int> = emptySet(),
   val effect: String = "static",

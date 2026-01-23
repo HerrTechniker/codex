@@ -15,7 +15,11 @@ class MqttPublisher {
     if (client != null && currentConfig == device && client?.isConnected == true) {
       return
     }
-    client?.disconnect()
+    try {
+      client?.disconnect()
+    } catch (_: MqttException) {
+      // Ignore disconnect errors and recreate the client.
+    }
     client = null
     currentConfig = device
 
