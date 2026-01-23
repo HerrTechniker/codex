@@ -114,6 +114,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
   }
 
   fun updateEffect(effect: String) {
+    if (effect == "on") {
+      _uiState.value = _uiState.value.copy(
+        red = 255,
+        green = 255,
+        blue = 255,
+        effect = "static",
+      )
+      schedulePublish()
+      return
+    }
     _uiState.value = _uiState.value.copy(effect = effect)
     publishEffect()
   }

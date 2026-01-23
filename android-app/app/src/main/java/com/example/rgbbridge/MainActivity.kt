@@ -293,7 +293,12 @@ fun RgbField(
 @Composable
 fun EffectSelector(current: String, onEffectChange: (String) -> Unit) {
   var expanded by remember { mutableStateOf(false) }
-  val effects = listOf("static" to "Kein Effekt", "flicker" to "Flackern", "rainbow" to "Rainbow")
+  val effects = listOf(
+    "static" to "Kein Effekt",
+    "on" to "Statisch an",
+    "flicker" to "Flackern",
+    "rainbow" to "Rainbow",
+  )
   val currentLabel = effects.firstOrNull { it.first == current }?.second ?: "Kein Effekt"
 
   Column {
