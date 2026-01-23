@@ -84,17 +84,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       blue = blue,
       effect = "static",
     )
-    schedulePublish()
   }
 
   fun updateMaxTargets(value: Int) {
     _uiState.value = _uiState.value.copy(maxTargets = value.coerceAtLeast(1))
-    schedulePublish()
   }
 
   fun toggleAllTargets(enabled: Boolean) {
     _uiState.value = _uiState.value.copy(allTargets = enabled)
-    schedulePublish()
   }
 
   fun toggleTarget(index: Int, enabled: Boolean) {
@@ -110,56 +107,38 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
       current.remove(index)
     }
     _uiState.value = _uiState.value.copy(selectedTargets = current, allTargets = false)
-    schedulePublish()
   }
 
   fun updateEffect(effect: String) {
-    if (effect == "on") {
-      _uiState.value = _uiState.value.copy(
-        red = 255,
-        green = 255,
-        blue = 255,
-        effect = "static",
-      )
-      schedulePublish()
-      return
-    }
     _uiState.value = _uiState.value.copy(effect = effect)
-    publishEffect()
   }
 
-  private fun schedulePublish() {
-    publishJob?.cancel()
-    publishJob = viewModelScope.launch {
-      val state = _uiState.value
-      val device = resolveSelectedDevice(state.deviceState)
-      if (device != null) {
-        val payload = "${state.red},${state.green},${state.blue}"
-        if (state.effect == "static") {
-          val targets = resolveTargets(state)
-          targets.forEach { index ->
-            val topic = "${device.topicBase}/$index"
-            publisher.publish(device, topic, payload)
-          }
-        }
-      }
-    }
-  }
-
-  private fun publishEffect() {
+  fun sendSettings() {
     publishJob?.cancel()
     publishJob = viewModelScope.launch {
       val state = _uiState.value
       val device = resolveSelectedDevice(state.deviceState)
       if (device != null) {
         val targets = resolveTargets(state)
-        val effectName = if (state.effect == "static") "none" else state.effect
-        val targetPayload = if (targets.isEmpty()) {
-          "effect=${effectName}"
+        val effect = if (state.effect == "on") "static" else state.effect
+        val rgbPayload = if (state.effect == "on") {
+          "255,255,255"
         } else {
-          "effect=${effectName};targets=${targets.joinToString(\",\")}"
+          "${state.red},${state.green},${state.blue}"
         }
-        publisher.publish(device, "${device.topicBase}/effect", targetPayload)
+        if (effect == "static") {
+          targets.forEach { index ->
+            val topic = "${device.topicBase}/$index"
+            publisher.publish(device, topic, rgbPayload)
+          }
+        } else {
+          val targetPayload = if (targets.isEmpty()) {
+            "effect=${effect}"
+          } else {
+            "effect=${effect};targets=${targets.joinToString(\",\")}"
+          }
+          publisher.publish(device, "${device.topicBase}/effect", targetPayload)
+        }
       }
     }
   }

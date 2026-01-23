@@ -154,6 +154,7 @@ fun RgbBridgeApp(viewModel: MainViewModel = viewModel()) {
             onAllTargetsChange = { viewModel.toggleAllTargets(it) },
             onTargetToggle = { index, enabled -> viewModel.toggleTarget(index, enabled) },
             onMaxTargetsChange = { viewModel.updateMaxTargets(it) },
+            onSend = { viewModel.sendSettings() },
           )
         }
       }
@@ -213,6 +214,7 @@ fun ColorControlScreen(
   onAllTargetsChange: (Boolean) -> Unit,
   onTargetToggle: (Int, Boolean) -> Unit,
   onMaxTargetsChange: (Int) -> Unit,
+  onSend: () -> Unit,
 ) {
   val scrollState = rememberScrollState()
   Column(
@@ -267,6 +269,13 @@ fun ColorControlScreen(
         onTargetToggle = onTargetToggle,
         onMaxTargetsChange = onMaxTargetsChange,
       )
+    }
+
+    Button(
+      onClick = onSend,
+      modifier = Modifier.fillMaxWidth(),
+    ) {
+      Text("Senden")
     }
   }
 }
